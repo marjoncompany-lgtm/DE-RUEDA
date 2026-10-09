@@ -37,7 +37,6 @@ import {
   INITIAL_INQUIRIES,
   INITIAL_HIRING,
   INITIAL_SETTINGS,
-  INITIAL_USER,
   INITIAL_LOGIN_DIRECTORY,
 } from '../data/initialData';
 
@@ -110,14 +109,15 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const STORAGE_KEY = 'DERUEDA_ERP_V1';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load persisted state or initial seed
+  // When URL first opens, all accounts are strictly logged out for privacy and protection
   const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
     try {
-      const saved = localStorage.getItem('DERUEDA_USER');
-      return saved ? JSON.parse(saved) : INITIAL_USER;
+      localStorage.removeItem('DERUEDA_USER');
+      sessionStorage.removeItem('DERUEDA_USER');
     } catch {
-      return INITIAL_USER;
+      // storage unavailable
     }
+    return null;
   });
 
   const [currentSite, setCurrentSite] = useState<string>('ALL');
@@ -275,10 +275,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  // Sync to local storage
+  // User session privacy protection
   useEffect(() => {
-    if (currentUser) localStorage.setItem('DERUEDA_USER', JSON.stringify(currentUser));
-    else localStorage.removeItem('DERUEDA_USER');
+    if (!currentUser) {
+      try {
+        localStorage.removeItem('DERUEDA_USER');
+        sessionStorage.removeItem('DERUEDA_USER');
+      } catch {
+        // ignore
+      }
+    }
   }, [currentUser]);
 
   useEffect(() => {

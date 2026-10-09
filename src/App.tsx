@@ -30,7 +30,7 @@ const MainAppContent: React.FC = () => {
   const { currentUser, logout } = useApp();
 
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
-  const [isPublicView, setIsPublicView] = useState<boolean>(false);
+  const [isPublicView, setIsPublicView] = useState<boolean>(!currentUser);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
@@ -65,17 +65,19 @@ const MainAppContent: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // If user logs out from anywhere, automatically redirect to the landing page
-  const prevUserRef = React.useRef(currentUser);
+  // If user is not authenticated or logs out, automatically enforce public view for protection
   useEffect(() => {
-    if (prevUserRef.current && !currentUser) {
+    if (!currentUser) {
       setIsPublicView(true);
       setIsLogoutOpen(false);
     }
-    prevUserRef.current = currentUser;
   }, [currentUser]);
 
   const handleNavigate = (page: PageId) => {
+    if (!currentUser) {
+      setIsAuthOpen(true);
+      return;
+    }
     setIsPublicView(false);
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -86,8 +88,8 @@ const MainAppContent: React.FC = () => {
     handleNavigate('payslips');
   };
 
-  // If user is viewing the public portal
-  if (isPublicView) {
+  // If user is unauthenticated OR is viewing the public portal
+  if (!currentUser || isPublicView) {
     return (
       <>
         <PublicWebsiteView
@@ -95,7 +97,11 @@ const MainAppContent: React.FC = () => {
             setIsAuthOpen(true);
           }}
           onGoToDashboard={() => {
-            setIsPublicView(false);
+            if (currentUser) {
+              setIsPublicView(false);
+            } else {
+              setIsAuthOpen(true);
+            }
           }}
           onOpenLogout={() => {
             setIsLogoutOpen(true);

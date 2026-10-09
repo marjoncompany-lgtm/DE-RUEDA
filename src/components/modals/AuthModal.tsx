@@ -33,10 +33,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
-  // Sync default email when switching roles if currently matching default
+  React.useEffect(() => {
+    if (isOpen) {
+      setPassword('');
+      setError('');
+      setShowPassword(false);
+    }
+  }, [isOpen]);
+
+  // Sync role and clear password
   const handleRoleSelect = (role: AccessPointRole) => {
     setAccessPoint(role);
     setError('');
+    setPassword('');
   };
 
   const isNewEmail =
