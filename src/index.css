@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+:root {
+  --bg-base: #080f0d;
+  --bg-surface: #0e1a16;
+  --bg-card: #13241f;
+  --bg-card-hover: #192e27;
+  --bg-subtle: #1c352d;
+  --border: #234338;
+  --primary: #10b981;
+  --accent: #a3e635;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0e1a16;
+}
+::-webkit-scrollbar-thumb {
+  background: #234338;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #10b981;
+}
+
+/* Print specific styles for 6-per-page payslips and badges */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .payslip-page-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 12px !important;
+    page-break-after: always;
+  }
+  .payslip-card-print {
+    page-break-inside: avoid !important;
+    border: 1.5px solid #000000 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}

@@ -1,0 +1,130 @@
+import React from 'react';
+import { useApp } from '../../context/AppContext';
+import { Search, Building2, UserCheck, LogOut, Globe, Menu, Shield } from 'lucide-react';
+
+interface NavbarProps {
+  onOpenSearch: () => void;
+  onOpenAuth: () => void;
+  onOpenLogout: () => void;
+  onToggleSidebar: () => void;
+  onViewPublic: () => void;
+  onNavigateLanding?: () => void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({
+  onOpenSearch,
+  onOpenAuth,
+  onOpenLogout,
+  onToggleSidebar,
+  onViewPublic,
+  onNavigateLanding,
+}) => {
+  const { currentUser, currentSite, setCurrentSite, sites } = useApp();
+
+  return (
+    <header className="h-16 bg-[#0e1a16] border-b border-[#234338] px-4 lg:px-6 flex items-center justify-between sticky top-0 z-30 gap-4 no-print">
+      {/* Left: Mobile hamburger & Site selector */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onToggleSidebar}
+          className="p-2 rounded-lg border border-[#234338] text-slate-400 hover:text-white hover:bg-[#13241f] lg:hidden"
+          title="Toggle Navigation"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center gap-2 bg-[#13241f] border border-[#234338] px-3 py-1.5 rounded-lg text-xs">
+          <Building2 className="w-4 h-4 text-[#a3e635] shrink-0" />
+          <span className="text-slate-400 font-medium hidden sm:inline">Project Site:</span>
+          <select
+            value={currentSite}
+            onChange={(e) => setCurrentSite(e.target.value)}
+            className="bg-transparent text-[#a3e635] font-semibold outline-none cursor-pointer text-xs"
+          >
+            <option value="ALL" className="bg-[#13241f] text-white">All Active Sites (Consolidated)</option>
+            {sites.map((s) => (
+              <option key={s.site_id} value={s.site_id} className="bg-[#13241f] text-white">
+                {s.code} - {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Center: Global Search trigger */}
+      <div
+        onClick={onOpenSearch}
+        className="flex-1 max-w-md hidden md:flex items-center gap-2 bg-[#13241f] border border-[#234338] hover:border-[#10b981] px-3 py-1.5 rounded-lg cursor-pointer text-xs text-slate-400 transition-colors"
+      >
+        <Search className="w-4 h-4 text-slate-500 shrink-0" />
+        <span className="flex-1 truncate">Search workers, projects, payroll refs, materials, expenses...</span>
+        <kbd className="px-1.5 py-0.5 text-[10px] bg-[#0e1a16] border border-[#234338] rounded text-slate-500 font-mono">
+          Ctrl+K
+        </kbd>
+      </div>
+
+      {/* Right: User Identity, Switch Account, Public Site, Logout */}
+      <div className="flex items-center gap-2.5">
+        {currentUser ? (
+          <div className="flex items-center gap-2 bg-[#13241f] border border-[#234338] px-3 py-1 rounded-full text-xs">
+            <span className="bg-[#a3e635] text-[#080f0d] font-extrabold px-1.5 py-0.5 rounded-full text-[10px] uppercase">
+              {currentUser.access_point}
+            </span>
+            <span className="text-slate-200 font-medium hidden sm:inline truncate max-w-[150px]">
+              {currentUser.email}
+            </span>
+          </div>
+        ) : (
+          <button
+            onClick={onOpenAuth}
+            className="px-3 py-1.5 bg-[#10b981] text-white text-xs font-semibold rounded-lg hover:bg-[#059669] flex items-center gap-1.5"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            Sign In
+          </button>
+        )}
+
+        {currentUser && (
+          <button
+            onClick={onOpenAuth}
+            className="px-2.5 py-1.5 border border-[#234338] text-slate-300 hover:text-white hover:bg-[#13241f] rounded-lg text-xs font-medium flex items-center gap-1"
+            title="Switch User Access Point"
+          >
+            <UserCheck className="w-3.5 h-3.5 text-[#a3e635]" />
+            <span className="hidden sm:inline">Switch</span>
+          </button>
+        )}
+
+        {onNavigateLanding && (
+          <button
+            onClick={onNavigateLanding}
+            className="px-2.5 py-1.5 border border-[#10b981]/40 text-[#a3e635] hover:bg-[#10b981]/15 rounded-lg text-xs font-semibold flex items-center gap-1.5"
+            title="Preview Landing Page Inside Software"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Landing Preview</span>
+          </button>
+        )}
+
+        <button
+          onClick={onViewPublic}
+          className="px-2.5 py-1.5 border border-[#234338] text-slate-300 hover:text-[#a3e635] hover:bg-[#13241f] rounded-lg text-xs font-medium flex items-center gap-1"
+          title="Open Standalone Public Website"
+        >
+          <span className="hidden sm:inline">Public Site</span>
+        </button>
+
+        {currentUser && (
+          <button
+            onClick={onOpenLogout}
+            className="px-2.5 py-1.5 border border-rose-500/30 text-rose-300 hover:text-white hover:bg-rose-500/20 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Log out of current session"
+          >
+            <LogOut className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        )}
+      </div>
+    </header>
+  );
+};
