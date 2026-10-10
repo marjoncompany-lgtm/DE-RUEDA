@@ -17,6 +17,8 @@ import {
   Download,
 } from 'lucide-react';
 import { WeeklyDTRReportModal } from '../modals/WeeklyDTRReportModal';
+import { TurnstileQrScannerModal } from '../modals/TurnstileQrScannerModal';
+import { AttendanceCalendarHeatmap } from '../attendance/AttendanceCalendarHeatmap';
 
 export const AttendanceView: React.FC = () => {
   const {
@@ -54,9 +56,6 @@ export const AttendanceView: React.FC = () => {
     time_out: string;
   } | null>(null);
   const [correctionReason, setCorrectionReason] = useState('');
-
-  // Scanner feedback state
-  const [scanResult, setScanResult] = useState<{ success?: boolean; message?: string } | null>(null);
 
   // Manual form state
   const [manualForm, setManualForm] = useState({
@@ -119,6 +118,113 @@ export const AttendanceView: React.FC = () => {
     setIsRolloverOpen(false);
   };
 
+  // Export current site attendance data & D3 30-day heatmap metrics to CSV
+  const handleDownloadAttendanceCSV = () => {
+    const siteObj = sites.find((s) => s.site_id === siteFilter);
+    const siteLabel = siteFilter === 'ALL' ? 'All_Sites' : siteObj?.code || siteFilter;
+    const nowIso = new Date().toISOString().substring(0, 10);
+    const filename = `Attendance_${siteLabel}_${nowIso}.csv`;
+
+    const lines: string[] = [];
+
+    // Header Meta Section
+    lines.push('DE RUEDA CONSTRUCTION BUILDERS - SITE ATTENDANCE & HEATMAP EXPORT');
+    lines.push(`Generated At,${new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })} (PHT)`);
+    lines.push(`Selected Site Filter,${siteFilter === 'ALL' ? 'ALL SITES' : `${siteObj?.code} - ${siteObj?.name}`}`);
+    lines.push(`Active Week Key,${selectedWeekKey} (${activeWeek?.date_start} to ${activeWeek?.date_end})`);
+    lines.push('');
+
+    // SECTION 1: 30-Day D3 Calendar Heatmap Daily Aggregation
+    lines.push('--- SECTION 1: D3 HEATMAP 30-DAY ATTENDANCE DENSITY ---');
+    lines.push('Date,Day of Week,Active Shifts,Unique Workers,Total Hours Logged,On-Time Clock-Ins,Overtime Shifts,Sites Active');
+
+    // Compute 30 days ending 2026-10-06
+    const endDate = new Date('2026-10-06T23:59:59+08:00');
+    const startDate30 = new Date(endDate);
+    startDate30.setDate(startDate30.getDate() - 29);
+    startDate30.setHours(0, 0, 0, 0);
+
+    const dayNameMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    for (let i = 0; i < 30; i++) {
+      const curDate = new Date(startDate30);
+      curDate.setDate(curDate.getDate() + i);
+      const dStr = curDate.toISOString().substring(0, 10);
+
+      const dayRecords = attendance.filter((a) => {
+        if (a.work_date !== dStr) return false;
+        if (siteFilter !== 'ALL' && a.site_id !== siteFilter) return false;
+        return true;
+      });
+
+      const shifts = dayRecords.length;
+      const workerSet = new Set(dayRecords.map((r) => r.employee_id));
+      const totalHrs = Math.round(dayRecords.reduce((acc, r) => acc + (r.work_hours || 0), 0) * 10) / 10;
+      const onTime = dayRecords.filter((r) => {
+        if (!r.time_in) return false;
+        const [h, m] = r.time_in.split(':').map(Number);
+        return h < 7 || (h === 7 && m <= 5);
+      }).length;
+      const ot = dayRecords.filter((r) => (r.work_hours || 0) > 8).length;
+      const daySites = Array.from(new Set(dayRecords.map((r) => r.site_id))).join('; ') || 'None';
+
+      lines.push(
+        [
+          dStr,
+          dayNameMap[curDate.getDay()],
+          shifts,
+          workerSet.size,
+          totalHrs,
+          onTime,
+          ot,
+          `"${daySites}"`,
+        ].join(',')
+      );
+    }
+
+    lines.push('');
+
+    // SECTION 2: Filtered Attendance Records (Site / Range Details)
+    lines.push('--- SECTION 2: SITE ATTENDANCE DETAILED SHIFT LOGS ---');
+    lines.push('Attendance ID,Employee ID,Employee Name,Site Code,Work Date,Time In,Time Out,Break Mins,Hours Logged,Source,QR Version');
+
+    const filteredRecords = attendance.filter((a) => {
+      if (siteFilter !== 'ALL' && a.site_id !== siteFilter) return false;
+      return true;
+    });
+
+    filteredRecords.forEach((r) => {
+      const emp = employees.find((e) => e.employee_id === r.employee_id);
+      const s = sites.find((st) => st.site_id === r.site_id);
+      const empName = emp ? `"${emp.name.replace(/"/g, '""')}"` : r.employee_id;
+      const siteCode = s?.code || r.site_id;
+
+      lines.push(
+        [
+          r.attendance_id,
+          r.employee_id,
+          empName,
+          siteCode,
+          r.work_date,
+          r.time_in || 'N/A',
+          r.time_out || 'N/A',
+          r.break_minutes || 0,
+          r.work_hours || 0,
+          r.source || 'QR',
+          r.qr_version || 1,
+        ].join(',')
+      );
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(lines.join('\n'));
+    const link = document.createElement('a');
+    link.setAttribute('href', csvContent);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -138,6 +244,14 @@ export const AttendanceView: React.FC = () => {
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            onClick={handleDownloadAttendanceCSV}
+            className="px-3.5 py-2 bg-[#a3e635] text-[#080f0d] hover:bg-[#84cc16] font-extrabold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1.5"
+            title="Download CSV export containing site attendance logs and D3 30-day heatmap density metrics"
+          >
+            <Download className="w-4 h-4 text-[#080f0d]" />
+            Download CSV
+          </button>
+          <button
             onClick={() => {
               setDtrTargetEmployeeId(undefined);
               setIsDTRReportModalOpen(true);
@@ -149,13 +263,10 @@ export const AttendanceView: React.FC = () => {
             Export Weekly DTR
           </button>
           <button
-            onClick={() => {
-              setScanResult(null);
-              setIsQrScannerOpen(true);
-            }}
-            className="px-3.5 py-2 bg-[#a3e635] text-[#080f0d] hover:bg-[#84cc16] font-bold text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+            onClick={() => setIsQrScannerOpen(true)}
+            className="px-3.5 py-2 bg-[#13241f] border border-[#234338] text-white hover:border-[#a3e635] font-bold text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
           >
-            <QrCode className="w-4 h-4" />
+            <QrCode className="w-4 h-4 text-[#a3e635]" />
             Turnstile QR Scanner
           </button>
           <button
@@ -230,6 +341,20 @@ export const AttendanceView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Visual D3 Calendar Heatmap: 30-Day Attendance Density */}
+      <AttendanceCalendarHeatmap
+        currentSiteFilter={siteFilter}
+        onDateClick={(dateStr) => {
+          // If clicked date belongs to an existing week in dtrWeeks, switch active week
+          const matchingWeek = dtrWeeks.find(
+            (w) => dateStr >= w.date_start && dateStr <= w.date_end
+          );
+          if (matchingWeek) {
+            setSelectedWeekKey(matchingWeek.week_key);
+          }
+        }}
+      />
 
       {/* DTR Grid Matrix */}
       <div className="bg-[#0e1a16] border border-[#234338] rounded-xl overflow-hidden shadow-lg">
@@ -347,99 +472,12 @@ export const AttendanceView: React.FC = () => {
         </div>
       </div>
 
-      {/* QR Turnstile Scanner Simulator Modal */}
-      {isQrScannerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="w-full max-w-xl bg-[#0e1a16] border border-[#234338] rounded-xl shadow-2xl p-5 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-[#234338]">
-              <div className="font-bold text-white text-sm flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-[#a3e635]" />
-                <span>Site Entrance Turnstile Camera Scanner</span>
-              </div>
-              <button onClick={() => setIsQrScannerOpen(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4 overflow-y-auto">
-              <div className="bg-[#13241f] border border-[#234338] rounded-xl p-6 text-center">
-                <div className="w-16 h-16 rounded-full bg-[#10b981]/20 border border-[#10b981]/40 mx-auto flex items-center justify-center text-emerald-400 mb-3 animate-pulse">
-                  <QrCode className="w-8 h-8" />
-                </div>
-                <h3 className="font-bold text-sm text-white">Camera Proximity Scanner Active</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                  Simulate field turnstiles. Automatically registers Time In or Time Out and calculates 8.0h shift less 1.5h breaks.
-                </p>
-
-                {/* Scan Results Display */}
-                {scanResult && (
-                  <div
-                    className={`mt-4 p-3 rounded-lg text-xs font-semibold text-left flex items-start gap-2.5 ${
-                      scanResult.success
-                        ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
-                        : 'bg-red-500/10 border border-red-500/30 text-red-300'
-                    }`}
-                  >
-                    {scanResult.success ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                    )}
-                    <div>{scanResult.message}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Scan Simulator Buttons */}
-              <div>
-                <div className="text-xs font-bold text-slate-300 mb-2">Simulate Employee Physical Badge Scans:</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {employees.map((e) => (
-                    <button
-                      key={e.employee_id}
-                      onClick={() => {
-                        const res = scanAttendanceQr(e.employee_id, e.qr_version, e.site_id, '2026-10-06');
-                        setScanResult(res);
-                      }}
-                      className="p-2.5 bg-[#13241f] border border-[#234338] hover:border-[#10b981] rounded-lg text-left text-xs text-slate-300 hover:text-white transition-colors"
-                    >
-                      <div className="font-bold text-white flex items-center justify-between">
-                        <span>{e.name}</span>
-                        <span className="text-[10px] font-mono text-[#a3e635]">v{e.qr_version}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400">{e.position} &bull; {e.site_id}</div>
-                    </button>
-                  ))}
-
-                  {/* Test Outdated QR Rejection */}
-                  <button
-                    onClick={() => {
-                      const res = scanAttendanceQr(employees[0]?.employee_id, 999, 'SITE-001', '2026-10-06');
-                      setScanResult(res);
-                    }}
-                    className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-lg text-left text-xs text-red-300 hover:bg-red-500/20 transition-colors sm:col-span-2"
-                  >
-                    <div className="font-bold text-red-200 flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      Test Outdated QR Version Rejection (Simulate Reassigned Worker with old QR)
-                    </div>
-                    <div className="text-[10px] text-red-400">Verifies system refuses obsolete printed badges</div>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-[#234338] text-right">
-              <button
-                onClick={() => setIsQrScannerOpen(false)}
-                className="px-4 py-2 bg-[#13241f] border border-[#234338] text-slate-300 hover:text-white text-xs font-semibold rounded-lg"
-              >
-                Close Scanner
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Turnstile Camera QR Scanner Modal */}
+      <TurnstileQrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        targetSiteId={siteFilter === 'ALL' ? undefined : siteFilter}
+      />
 
       {/* Manual Attendance Modal */}
       {isManualOpen && (

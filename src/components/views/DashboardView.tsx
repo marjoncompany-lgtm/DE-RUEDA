@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { PageId } from '../layout/Sidebar';
+import { ProjectGanttChart } from '../dashboard/ProjectGanttChart';
 import {
   Users,
   Building,
@@ -235,6 +236,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* D3 Project Gantt Chart & Milestone Timeline */}
+      <ProjectGanttChart initialSiteFilter={currentSite} />
 
       {/* Two Column Layout: Active Projects & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

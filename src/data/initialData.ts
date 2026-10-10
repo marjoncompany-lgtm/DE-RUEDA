@@ -240,42 +240,86 @@ export const INITIAL_DTR_WEEKS: DtrWeek[] = [
   },
 ];
 
-// Sample of attendance records for Week 40 and 41
-export const INITIAL_ATTENDANCE: AttendanceRecord[] = [
-  // Week 41 - Oct 5
-  { attendance_id: 'ATT-1-2026-10-05', employee_id: 'DRC-EMP-2026-000001', site_id: 'SITE-003', work_date: '2026-10-05', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 3, created_at: '2026-10-05T07:00:00+08:00', updated_at: '2026-10-05T16:30:00+08:00' },
-  { attendance_id: 'ATT-1-2026-10-06', employee_id: 'DRC-EMP-2026-000001', site_id: 'SITE-003', work_date: '2026-10-06', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 3, created_at: '2026-10-06T07:00:00+08:00', updated_at: '2026-10-06T16:30:00+08:00' },
-  { attendance_id: 'ATT-2-2026-10-05', employee_id: 'DRC-EMP-2026-000002', site_id: 'SITE-001', work_date: '2026-10-05', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-05T07:00:00+08:00', updated_at: '2026-10-05T16:30:00+08:00' },
-  { attendance_id: 'ATT-2-2026-10-06', employee_id: 'DRC-EMP-2026-000002', site_id: 'SITE-001', work_date: '2026-10-06', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-06T07:00:00+08:00', updated_at: '2026-10-06T16:30:00+08:00' },
-  { attendance_id: 'ATT-3-2026-10-05', employee_id: 'DRC-EMP-2026-000003', site_id: 'SITE-002', work_date: '2026-10-05', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-05T07:00:00+08:00', updated_at: '2026-10-05T16:30:00+08:00' },
-  { attendance_id: 'ATT-3-2026-10-06', employee_id: 'DRC-EMP-2026-000003', site_id: 'SITE-002', work_date: '2026-10-06', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-06T07:00:00+08:00', updated_at: '2026-10-06T16:30:00+08:00' },
-  { attendance_id: 'ATT-4-2026-10-05', employee_id: 'DRC-EMP-2026-000004', site_id: 'SITE-002', work_date: '2026-10-05', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-05T07:00:00+08:00', updated_at: '2026-10-05T16:30:00+08:00' },
-  { attendance_id: 'ATT-4-2026-10-06', employee_id: 'DRC-EMP-2026-000004', site_id: 'SITE-002', work_date: '2026-10-06', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-06T07:00:00+08:00', updated_at: '2026-10-06T16:30:00+08:00' },
-  { attendance_id: 'ATT-5-2026-10-05', employee_id: 'DRC-EMP-2026-000005', site_id: 'SITE-003', work_date: '2026-10-05', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-05T07:00:00+08:00', updated_at: '2026-10-05T16:30:00+08:00' },
-  { attendance_id: 'ATT-5-2026-10-06', employee_id: 'DRC-EMP-2026-000005', site_id: 'SITE-003', work_date: '2026-10-06', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-06T07:00:00+08:00', updated_at: '2026-10-06T16:30:00+08:00' },
-  { attendance_id: 'ATT-6-2026-10-05', employee_id: 'DRC-EMP-2026-000006', site_id: 'SITE-003', work_date: '2026-10-05', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-05T07:00:00+08:00', updated_at: '2026-10-05T16:30:00+08:00' },
-  { attendance_id: 'ATT-6-2026-10-06', employee_id: 'DRC-EMP-2026-000006', site_id: 'SITE-003', work_date: '2026-10-06', time_in: '07:00', time_out: '16:30', elapsed_minutes: 570, break_minutes: 90, work_minutes: 480, work_hours: 8.0, source: 'QR', qr_version: 1, created_at: '2026-10-06T07:00:00+08:00', updated_at: '2026-10-06T16:30:00+08:00' },
+// Helper to build 30 days of authentic construction site attendance (2026-09-07 to 2026-10-06)
+const build30DayAttendance = (): AttendanceRecord[] => {
+  const records: AttendanceRecord[] = [];
+  const empList = [
+    { id: 'DRC-EMP-2026-000001', site: 'SITE-001', qrv: 3 },
+    { id: 'DRC-EMP-2026-000002', site: 'SITE-001', qrv: 1 },
+    { id: 'DRC-EMP-2026-000007', site: 'SITE-001', qrv: 1 },
+    { id: 'DRC-EMP-2026-000003', site: 'SITE-002', qrv: 1 },
+    { id: 'DRC-EMP-2026-000004', site: 'SITE-002', qrv: 1 },
+    { id: 'DRC-EMP-2026-000005', site: 'SITE-003', qrv: 1 },
+    { id: 'DRC-EMP-2026-000006', site: 'SITE-003', qrv: 1 },
+  ];
 
-  // Week 40 records (Full 6 days Mon-Sat)
-  ...['DRC-EMP-2026-000001', 'DRC-EMP-2026-000002', 'DRC-EMP-2026-000003', 'DRC-EMP-2026-000004', 'DRC-EMP-2026-000005', 'DRC-EMP-2026-000006', 'DRC-EMP-2026-000007'].flatMap(empId =>
-    ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03'].map(date => ({
-      attendance_id: `ATT-${empId}-${date}`,
-      employee_id: empId,
-      site_id: empId.endsWith('1') || empId.endsWith('2') || empId.endsWith('7') ? 'SITE-001' : (empId.endsWith('3') || empId.endsWith('4') ? 'SITE-002' : 'SITE-003'),
-      work_date: date,
-      time_in: '07:00',
-      time_out: '16:30',
-      elapsed_minutes: 570,
-      break_minutes: 90,
-      work_minutes: 480,
-      work_hours: 8.0,
-      source: 'QR' as const,
-      qr_version: 1,
-      created_at: `${date}T07:00:00+08:00`,
-      updated_at: `${date}T16:30:00+08:00`,
-    }))
-  ),
-];
+  // 30 days starting 2026-09-07 through 2026-10-06
+  const base = new Date('2026-09-07T00:00:00+08:00');
+  for (let d = 0; d < 30; d++) {
+    const curr = new Date(base.getTime() + d * 86400000);
+    const dateStr = curr.toISOString().split('T')[0];
+    const dayOfWeek = curr.getDay(); // 0 is Sunday
+
+    // Sunday has light site maintenance (1 worker) or 0
+    if (dayOfWeek === 0) {
+      if (d % 2 === 0) {
+        records.push({
+          attendance_id: `ATT-SUN-${dateStr}`,
+          employee_id: 'DRC-EMP-2026-000002',
+          site_id: 'SITE-001',
+          work_date: dateStr,
+          time_in: '08:00',
+          time_out: '12:00',
+          elapsed_minutes: 240,
+          break_minutes: 0,
+          work_minutes: 240,
+          work_hours: 4.0,
+          source: 'QR',
+          qr_version: 1,
+          created_at: `${dateStr}T08:00:00+08:00`,
+          updated_at: `${dateStr}T12:00:00+08:00`,
+        });
+      }
+      continue;
+    }
+
+    // Monday through Saturday - full shift attendance
+    empList.forEach((emp, index) => {
+      // Occasional rest or off-site assignment for realistic variance (95% attendance rate)
+      if ((d + index) % 17 === 0) return;
+
+      const isLate = (d + index) % 13 === 0;
+      const hasOt = (d + index) % 7 === 0;
+
+      const timeIn = isLate ? '07:15' : '07:00';
+      const timeOut = hasOt ? '18:00' : '16:30';
+      const workHours = hasOt ? 9.5 : (isLate ? 7.75 : 8.0);
+      const workMin = Math.round(workHours * 60);
+
+      records.push({
+        attendance_id: `ATT-${emp.id}-${dateStr}`,
+        employee_id: emp.id,
+        site_id: emp.site,
+        work_date: dateStr,
+        time_in: timeIn,
+        time_out: timeOut,
+        elapsed_minutes: workMin + 90,
+        break_minutes: 90,
+        work_minutes: workMin,
+        work_hours: workHours,
+        source: 'QR',
+        qr_version: emp.qrv,
+        created_at: `${dateStr}T${timeIn}:00+08:00`,
+        updated_at: `${dateStr}T${timeOut}:00+08:00`,
+      });
+    });
+  }
+
+  return records;
+};
+
+// Rich 30-day site attendance dataset
+export const INITIAL_ATTENDANCE: AttendanceRecord[] = build30DayAttendance();
 
 export const INITIAL_DEDUCTIONS: DeductionRecord[] = [
   {
