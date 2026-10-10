@@ -62,11 +62,11 @@ export interface GanttMilestone {
   subTasks?: MilestoneSubTask[];
 }
 
-const STORAGE_MILESTONES_KEY = 'DERUEDA_ERP_GANTT_MILESTONES_V3';
+export const STORAGE_MILESTONES_KEY = 'DERUEDA_ERP_GANTT_MILESTONES_V3';
 
 
 // Master Project Work Breakdown Data for De Rueda Construction Sites
-const GANTT_TASKS: GanttTask[] = [
+export const GANTT_TASKS: GanttTask[] = [
   // SITE-001: Mariveles Industrial Park Warehouse A
   {
     id: 'T-101',
@@ -326,7 +326,37 @@ const GANTT_TASKS: GanttTask[] = [
   },
 ];
 
-const GANTT_MILESTONES: GanttMilestone[] = [
+export const GANTT_MILESTONES: GanttMilestone[] = [
+  {
+    id: 'M-100',
+    siteId: 'SITE-001',
+    siteName: 'Mariveles Industrial Park Warehouse A',
+    siteCode: 'Site 001',
+    name: 'Initial Structural Steel Mill Certificate Audit',
+    targetDate: '2026-09-28',
+    status: 'Critical',
+    description: 'ASTM A36 mill test certification signoff by resident structural engineer',
+    subTasks: [
+      { id: 'st-100-1', name: 'Mill test certificates tensile & yield strength audit', completed: true },
+      { id: 'st-100-2', name: 'Third-party metallurgy lab coupon chemical test review', completed: true },
+      { id: 'st-100-3', name: 'Resident structural engineer written milestone acceptance', completed: false },
+    ],
+  },
+  {
+    id: 'M-105',
+    siteId: 'SITE-001',
+    siteName: 'Mariveles Industrial Park Warehouse A',
+    siteCode: 'Site 001',
+    name: 'Pre-Pour Concrete Compression & Rebar Tensile Safety Signoff',
+    targetDate: '2026-10-08',
+    status: 'Critical',
+    description: 'Resident structural PE mandatory safety clearance within 48 hours of scheduled continuous foundation slab pour',
+    subTasks: [
+      { id: 'st-105-1', name: 'Grade 60 deform bar rebar spacing & splice length verification', completed: true },
+      { id: 'st-105-2', name: 'Concrete cylinder compression 7-day break test certification', completed: false },
+      { id: 'st-105-3', name: 'Resident structural PE written pre-pour clearance signoff', completed: false },
+    ],
+  },
   {
     id: 'M-101',
     siteId: 'SITE-001',
@@ -391,6 +421,21 @@ const GANTT_MILESTONES: GanttMilestone[] = [
       { id: 'st-104-2', name: 'Emergency egress lighting & fire alarm loop commissioning', completed: false },
       { id: 'st-104-3', name: 'DOLE OSHC certified safety practitioner workplace audit', completed: false },
       { id: 'st-104-4', name: 'LGU BFP fire safety inspection certificate issuance', completed: false },
+    ],
+  },
+  {
+    id: 'M-200',
+    siteId: 'SITE-002',
+    siteName: 'Subic Commercial Complex',
+    siteCode: 'Site 002',
+    name: 'Subic Stormwater Culvert Joint Seal Test',
+    targetDate: '2026-10-03',
+    status: 'In Progress',
+    description: 'SBMA environmental drainage clearance inspection',
+    subTasks: [
+      { id: 'st-200-1', name: 'Reinforced concrete culvert joint mastic seal inspection', completed: true },
+      { id: 'st-200-2', name: '24-hour stormwater hydrostatic leak pressure testing', completed: false },
+      { id: 'st-200-3', name: 'SBMA ecology center clearance certificate endorsement', completed: false },
     ],
   },
   {
@@ -646,17 +691,53 @@ interface TooltipData {
   milestoneId?: string;
 }
 
-interface ProjectGanttChartProps {
+export interface ProjectGanttChartProps {
   initialSiteFilter?: string;
+  externalSiteFilter?: string;
+  onSiteFilterChange?: (site: string) => void;
+  externalStatusFilter?: string;
+  onStatusFilterChange?: (status: string) => void;
+  externalCriticalOnly?: boolean;
+  onCriticalOnlyChange?: (criticalOnly: boolean) => void;
+  externalMilestones?: GanttMilestone[];
+  onMilestonesChange?: (milestones: GanttMilestone[]) => void;
 }
 
 export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
   initialSiteFilter = 'ALL',
+  externalSiteFilter,
+  onSiteFilterChange,
+  externalStatusFilter,
+  onStatusFilterChange,
+  externalCriticalOnly,
+  onCriticalOnlyChange,
+  externalMilestones,
+  onMilestonesChange,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
-  const [siteFilter, setSiteFilter] = useState<string>(initialSiteFilter);
+  const [internalSiteFilter, setInternalSiteFilter] = useState<string>(initialSiteFilter);
+  const siteFilter = externalSiteFilter !== undefined ? externalSiteFilter : internalSiteFilter;
+  const setSiteFilter = (site: string) => {
+    setInternalSiteFilter(site);
+    onSiteFilterChange?.(site);
+  };
+
+  const [internalStatusFilter, setInternalStatusFilter] = useState<string>('ALL');
+  const statusFilter = externalStatusFilter !== undefined ? externalStatusFilter : internalStatusFilter;
+  const setStatusFilter = (status: string) => {
+    setInternalStatusFilter(status);
+    onStatusFilterChange?.(status);
+  };
+
+  const [internalCriticalOnly, setInternalCriticalOnly] = useState<boolean>(false);
+  const criticalOnly = externalCriticalOnly !== undefined ? externalCriticalOnly : internalCriticalOnly;
+  const setCriticalOnly = (val: boolean) => {
+    setInternalCriticalOnly(val);
+    onCriticalOnlyChange?.(val);
+  };
+
   const [viewMode, setViewMode] = useState<'all' | 'critical' | 'milestones'>('all');
   const [timeZoom, setTimeZoom] = useState<'full' | 'quarter'>('full');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -731,12 +812,34 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
   // Save milestones helper
   const saveMilestonesToStateAndStorage = (updated: GanttMilestone[]) => {
     setMilestones(updated);
+    onMilestonesChange?.(updated);
     try {
       localStorage.setItem(STORAGE_MILESTONES_KEY, JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('derueda_milestones_updated', { detail: updated }));
     } catch {
       // ignore storage errors
     }
   };
+
+  // Keep internal state synchronized with external prop updates
+  useEffect(() => {
+    if (externalMilestones) {
+      setMilestones(externalMilestones);
+    }
+  }, [externalMilestones]);
+
+  // Listen for external bulk milestone updates
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setMilestones(e.detail);
+      }
+    };
+    window.addEventListener('derueda_milestones_updated', handleSync);
+    return () => {
+      window.removeEventListener('derueda_milestones_updated', handleSync);
+    };
+  }, []);
 
   // Toggle sub-task directly with dynamic milestone progress bar and status updates
   const handleToggleSubTask = (milestoneId: string, subTaskId: string) => {
@@ -962,7 +1065,23 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
   const filteredTasks = useMemo(() => {
     return GANTT_TASKS.filter((t) => {
       if (siteFilter !== 'ALL' && t.siteId !== siteFilter) return false;
-      if (viewMode === 'critical' && !t.isCriticalPath) return false;
+      if ((viewMode === 'critical' || criticalOnly) && !t.isCriticalPath) return false;
+
+      // Completion Status filter
+      if (statusFilter && statusFilter !== 'ALL') {
+        if (statusFilter === 'Critical') {
+          if (!t.isCriticalPath) return false;
+        } else if (statusFilter === 'In Progress') {
+          if (t.status !== 'In Progress' && !(t.progress > 0 && t.progress < 100)) return false;
+        } else if (statusFilter === 'Completed') {
+          if (t.status !== 'Completed' && t.progress !== 100) return false;
+        } else if (statusFilter === 'Scheduled') {
+          if (t.status !== 'Scheduled' && t.progress !== 0) return false;
+        } else if (statusFilter === 'Delayed') {
+          if (t.status !== 'Delayed') return false;
+        }
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -974,12 +1093,30 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
       }
       return true;
     });
-  }, [siteFilter, viewMode, searchQuery]);
+  }, [siteFilter, viewMode, criticalOnly, statusFilter, searchQuery]);
 
   // Filter milestones from dynamic state
   const filteredMilestones = useMemo(() => {
     return milestones.filter((m) => {
       if (siteFilter !== 'ALL' && m.siteId !== siteFilter) return false;
+      if (criticalOnly && m.status !== 'Critical') return false;
+
+      // Completion Status filter
+      if (statusFilter && statusFilter !== 'ALL') {
+        const normStatus = m.status === 'Achieved' ? 'Completed' : m.status;
+        if (statusFilter === 'Critical') {
+          if (m.status !== 'Critical') return false;
+        } else if (statusFilter === 'In Progress') {
+          if (normStatus !== 'In Progress') return false;
+        } else if (statusFilter === 'Completed') {
+          if (normStatus !== 'Completed') return false;
+        } else if (statusFilter === 'Scheduled') {
+          if (normStatus !== 'Upcoming') return false;
+        } else if (statusFilter === 'Delayed') {
+          if (normStatus !== 'Critical') return false;
+        }
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -990,7 +1127,7 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
       }
       return true;
     });
-  }, [milestones, siteFilter, searchQuery]);
+  }, [milestones, siteFilter, criticalOnly, statusFilter, searchQuery]);
 
   // Aggregate milestone counts for color-coded key
   const milestoneCounts = useMemo(() => {

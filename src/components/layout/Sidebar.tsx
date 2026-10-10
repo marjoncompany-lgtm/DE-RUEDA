@@ -22,10 +22,14 @@ import {
   Globe,
   LogOut,
   Shield,
+  Lock,
+  Wallet,
 } from 'lucide-react';
 
 export type PageId =
   | 'dashboard'
+  | 'ceo_monitoring'
+  | 'ceo_gcash'
   | 'employees'
   | 'sites'
   | 'attendance'
@@ -62,6 +66,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { currentUser } = useApp();
   const navSections = [
+    {
+      title: 'Restricted CEO Vault',
+      items: [
+        {
+          id: 'ceo_monitoring' as PageId,
+          label: 'CEO Monitoring Hub',
+          icon: Shield,
+          badge: 'EMERITA',
+        },
+        {
+          id: 'ceo_gcash' as PageId,
+          label: 'CEO GCash Operations',
+          icon: Wallet,
+          badge: 'RESTRICTED',
+        },
+      ],
+    },
     {
       title: 'Executive & Operations',
       items: [
@@ -165,7 +186,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       }`}
                     >
                       <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#a3e635]' : 'text-slate-400'}`} />
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate flex-1">{item.label}</span>
+                      {'badge' in item && item.badge && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
+                          {item.badge}
+                        </span>
+                      )}
                     </button>
                   );
                 })}

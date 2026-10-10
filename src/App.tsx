@@ -25,6 +25,8 @@ import { SettingsView } from './components/views/SettingsView';
 import { AuditView } from './components/views/AuditView';
 import { PublicWebsiteView } from './components/views/PublicWebsiteView';
 import { LandingPagePreviewView } from './components/views/LandingPagePreviewView';
+import { CeoMonitoringView } from './components/views/CeoMonitoringView';
+import { CeoGcashDashboardView } from './components/views/CeoGcashDashboardView';
 
 const MainAppContent: React.FC = () => {
   const { currentUser, logout } = useApp();
@@ -135,6 +137,10 @@ const MainAppContent: React.FC = () => {
             onOpenQrScanner={() => handleNavigate('attendance')}
           />
         );
+      case 'ceo_monitoring':
+        return <CeoMonitoringView onNavigate={handleNavigate} />;
+      case 'ceo_gcash':
+        return <CeoGcashDashboardView onNavigate={handleNavigate} />;
       case 'employees':
         return <EmployeesView />;
       case 'sites':

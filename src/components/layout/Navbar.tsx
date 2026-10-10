@@ -1,6 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Search, Building2, UserCheck, LogOut, Globe, Menu, Shield } from 'lucide-react';
+import {
+  Search,
+  Building2,
+  UserCheck,
+  LogOut,
+  Globe,
+  Menu,
+  Shield,
+  Wifi,
+  WifiOff,
+} from 'lucide-react';
+import { OfflineSyncModal } from '../modals/OfflineSyncModal';
 
 interface NavbarProps {
   onOpenSearch: () => void;
@@ -19,37 +30,69 @@ export const Navbar: React.FC<NavbarProps> = ({
   onViewPublic,
   onNavigateLanding,
 }) => {
-  const { currentUser, currentSite, setCurrentSite, sites } = useApp();
+  const { currentUser, currentSite, setCurrentSite, sites, isOnline, offlineStats } = useApp();
+  const [isOfflineModalOpen, setIsOfflineModalOpen] = useState(false);
 
   return (
-    <header className="h-16 bg-[#0e1a16] border-b border-[#234338] px-4 lg:px-6 flex items-center justify-between sticky top-0 z-30 gap-4 no-print">
-      {/* Left: Mobile hamburger & Site selector */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onToggleSidebar}
-          className="p-2 rounded-lg border border-[#234338] text-slate-400 hover:text-white hover:bg-[#13241f] lg:hidden"
-          title="Toggle Navigation"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-
-        <div className="flex items-center gap-2 bg-[#13241f] border border-[#234338] px-3 py-1.5 rounded-lg text-xs">
-          <Building2 className="w-4 h-4 text-[#a3e635] shrink-0" />
-          <span className="text-slate-400 font-medium hidden sm:inline">Project Site:</span>
-          <select
-            value={currentSite}
-            onChange={(e) => setCurrentSite(e.target.value)}
-            className="bg-transparent text-[#a3e635] font-semibold outline-none cursor-pointer text-xs"
+    <>
+      <header className="h-16 bg-[#0e1a16] border-b border-[#234338] px-4 lg:px-6 flex items-center justify-between sticky top-0 z-30 gap-4 no-print">
+        {/* Left: Mobile hamburger & Site selector */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onToggleSidebar}
+            className="p-2 rounded-lg border border-[#234338] text-slate-400 hover:text-white hover:bg-[#13241f] lg:hidden"
+            title="Toggle Navigation"
           >
-            <option value="ALL" className="bg-[#13241f] text-white">All Active Sites (Consolidated)</option>
-            {sites.map((s) => (
-              <option key={s.site_id} value={s.site_id} className="bg-[#13241f] text-white">
-                {s.code} - {s.name}
-              </option>
-            ))}
-          </select>
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-2 bg-[#13241f] border border-[#234338] px-3 py-1.5 rounded-lg text-xs">
+            <Building2 className="w-4 h-4 text-[#a3e635] shrink-0" />
+            <span className="text-slate-400 font-medium hidden sm:inline">Project Site:</span>
+            <select
+              value={currentSite}
+              onChange={(e) => setCurrentSite(e.target.value)}
+              className="bg-transparent text-[#a3e635] font-semibold outline-none cursor-pointer text-xs"
+            >
+              <option value="ALL" className="bg-[#13241f] text-white">All Active Sites (Consolidated)</option>
+              {sites.map((s) => (
+                <option key={s.site_id} value={s.site_id} className="bg-[#13241f] text-white">
+                  {s.code} - {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Construction Site Network / Offline Cache Indicator */}
+          <button
+            onClick={() => setIsOfflineModalOpen(true)}
+            className={`px-2.5 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              isOnline
+                ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-400'
+                : 'bg-amber-950/30 border-amber-500 text-amber-300 ring-2 ring-amber-400/40 animate-pulse'
+            }`}
+            title="Inspect site network connection & local ERP caching"
+          >
+            {isOnline ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden md:inline text-[11px]">Site Online</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-ping" />
+                <WifiOff className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[11px] font-bold">Cached Mode</span>
+                {offlineStats.pendingQueueCount > 0 && (
+                  <span className="px-1 rounded bg-amber-500/40 font-mono text-[9px] font-black">
+                    {offlineStats.pendingQueueCount}
+                  </span>
+                )}
+              </>
+            )}
+          </button>
         </div>
-      </div>
 
       {/* Center: Global Search trigger */}
       <div
@@ -126,5 +169,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </div>
     </header>
+
+    {/* Construction Site Network / Offline Cache Modal */}
+    <OfflineSyncModal
+      isOpen={isOfflineModalOpen}
+      onClose={() => setIsOfflineModalOpen(false)}
+    />
+  </>
   );
 };

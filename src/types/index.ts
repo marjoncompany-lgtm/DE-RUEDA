@@ -293,3 +293,151 @@ export interface PublicHiring {
   status: 'Under Review' | 'Interview Scheduled' | 'Hired' | 'Declined';
   created_at: string;
 }
+
+export interface GCashDisbursementRequest {
+  payroll_id: string;
+  employee_id: string;
+  employee_name: string;
+  gcash_number: string;
+  amount: number;
+  week_key: string;
+  site_id: string;
+  site_name?: string;
+  user_pin?: string;
+  notes?: string;
+}
+
+export interface GCashDisbursementResponse {
+  success: boolean;
+  transaction_id: string;
+  reference_no: string;
+  status: 'COMPLETED' | 'FAILED' | 'PENDING';
+  amount: number;
+  currency: string;
+  timestamp: string;
+  merchant_name: string;
+  merchant_id: string;
+  recipient_name: string;
+  recipient_mobile: string;
+  fee: number;
+  receipt_url: string;
+  receipt_file_name: string;
+  network_response_code: string;
+  message: string;
+}
+
+export interface GCashWalletStatus {
+  merchant_id: string;
+  account_name: string;
+  available_balance: number;
+  daily_disbursement_limit: number;
+  daily_disbursed_today: number;
+  status: 'ACTIVE' | 'MAINTENANCE' | 'LIMITED';
+  settlement_currency: string;
+  last_topup_date: string;
+  network_provider: string;
+}
+
+export interface OfflineActionItem {
+  id: string;
+  type: 'ATTENDANCE_SCAN' | 'PAYROLL_VERIFY' | 'GCASH_PAY' | 'DEDUCTION_ADD' | 'NOTE_ADD';
+  payload: any;
+  timestamp: string;
+  synced: boolean;
+  retryCount: number;
+}
+
+export interface OfflineCacheStats {
+  isOnline: boolean;
+  isSimulatedOffline: boolean;
+  cachedEmployeesCount: number;
+  cachedAttendanceCount: number;
+  cachedSitesCount: number;
+  cachedPayrollCount: number;
+  pendingQueueCount: number;
+  lastSyncTimestamp: string;
+  storageUsageBytes: number;
+}
+
+export interface EquipmentResource {
+  equipment_id: string;
+  name: string;
+  category: 'Heavy Excavation' | 'Lifting & Cranes' | 'Earthmoving & Grading' | 'Hauling & Transport' | 'Concrete & Paving' | 'Power & Utilities';
+  model: string;
+  plate_number: string;
+  site_id: string; // 'SITE-001' | 'SITE-002' | 'SITE-003' | 'DEPOT-000'
+  assigned_operator_id?: string;
+  assigned_operator_name?: string;
+  allocation_start: string; // YYYY-MM-DD
+  allocation_end: string;   // YYYY-MM-DD
+  status: 'Allocated' | 'Available' | 'Maintenance';
+  fuel_level_pct: number;
+  hourly_rate: number;
+  notes: string;
+}
+
+export interface DigitalSignatureData {
+  signed_by: string;
+  signer_role: string;
+  signed_at: string;
+  signature_svg: string;
+  verification_hash: string;
+  ip_address?: string;
+}
+
+export interface InternalPurchaseOrder {
+  po_id: string;
+  site_id: string;
+  site_name: string;
+  vendor_name: string;
+  category: string;
+  items: Array<{
+    item_name: string;
+    quantity: number;
+    unit: string;
+    unit_price: number;
+    total_price: number;
+  }>;
+  total_amount: number;
+  requested_by: string;
+  date_issued: string;
+  required_delivery_date: string;
+  status: 'Pending Signature' | 'Approved' | 'Rejected';
+  digital_signature?: DigitalSignatureData;
+  notes: string;
+}
+
+export interface WeeklyPayrollApprovalDoc {
+  doc_id: string;
+  week_key: string;
+  site_id: string;
+  site_name: string;
+  total_workers: number;
+  total_gross_pay: number;
+  total_deductions: number;
+  total_net_pay: number;
+  prepared_by: string;
+  date_prepared: string;
+  status: 'Pending Signature' | 'Approved' | 'Rejected';
+  digital_signature?: DigitalSignatureData;
+  notes: string;
+}
+
+export interface GCashTransactionRecord {
+  transaction_id: string;
+  reference_no: string;
+  category: 'Weekly Salary' | 'Site Operations (Fuel/Emergency)' | 'Subcontractor Spot Payment' | 'Materials Spot Cash';
+  site_id: string;
+  site_name: string;
+  recipient_name: string;
+  recipient_mobile: string;
+  amount: number;
+  fee: number;
+  purpose: string;
+  status: 'COMPLETED' | 'PENDING' | 'FAILED';
+  receipt_url: string;
+  receipt_file_name?: string;
+  initiated_by: string;
+  timestamp: string;
+}
+

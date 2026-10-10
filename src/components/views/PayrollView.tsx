@@ -13,18 +13,41 @@ import {
   X,
   FileText,
   Printer,
+  Smartphone,
+  Wallet,
+  Zap,
+  Send,
+  Sparkles,
 } from 'lucide-react';
+import { GCashPaymentModal } from '../modals/GCashPaymentModal';
 
 interface PayrollViewProps {
   onOpenSinglePayslip: (payrollId: string) => void;
 }
 
 export const PayrollView: React.FC<PayrollViewProps> = ({ onOpenSinglePayslip }) => {
-  const { payroll, dtrWeeks, sites, currentSite, recalculatePayroll, verifyPayrollProof } = useApp();
+  const {
+    payroll,
+    dtrWeeks,
+    sites,
+    employees,
+    currentSite,
+    recalculatePayroll,
+    verifyPayrollProof,
+    triggerBatchGcashPayment,
+    isOnline,
+  } = useApp();
 
   const [selectedWeek, setSelectedWeek] = useState(dtrWeeks[0]?.week_key || '2026-W40');
   const [siteFilter, setSiteFilter] = useState(currentSite);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'Pending' | 'Verified'>('ALL');
+
+  // Individual GCash Payment Modal State
+  const [gcashModalRecord, setGcashModalRecord] = useState<PayrollRecord | null>(null);
+
+  // Batch GCash Execution State
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
 
   // Proof Modal
   const [proofingRecord, setProofingRecord] = useState<PayrollRecord | null>(null);
@@ -105,6 +128,31 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ onOpenSinglePayslip })
   const totalDeductions = filtered.reduce((sum, p) => sum + p.total_deductions, 0);
   const totalNet = filtered.reduce((sum, p) => sum + p.net_pay, 0);
 
+  // GCash pending items in current view
+  const pendingGcashItems = filtered.filter(
+    (p) =>
+      p.payment_status === 'Pending' &&
+      (p.payment_method === 'GCash' ||
+        employees.find((e) => e.employee_id === p.employee_id)?.gcash_number)
+  );
+  const pendingGcashTotal = pendingGcashItems.reduce((sum, p) => sum + p.net_pay, 0);
+
+  const handleBatchDisburse = async () => {
+    if (pendingGcashItems.length === 0) return;
+    setIsBatchProcessing(true);
+    setBatchNotice(null);
+    try {
+      const ids = pendingGcashItems.map((p) => p.payroll_id);
+      const res = await triggerBatchGcashPayment(ids);
+      setIsBatchProcessing(false);
+      setBatchNotice(res.message);
+      setTimeout(() => setBatchNotice(null), 6000);
+    } catch {
+      setIsBatchProcessing(false);
+      setBatchNotice('Batch disbursement failed. Please verify site connection.');
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -113,40 +161,95 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ onOpenSinglePayslip })
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
             Weekly Payroll Register & Payment Verification
           </h1>
-          <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+          <div className="flex items-center gap-2 text-xs text-slate-400 mt-1 flex-wrap">
             <span>Verified Attendance &times; Daily Rate &minus; Linked Deductions = Net Pay</span>
             <span>·</span>
-            <span>GCash Transaction Refs & Real Photo Voucher Capture</span>
+            <span className="text-sky-300 font-semibold flex items-center gap-1">
+              <Smartphone className="w-3.5 h-3.5 text-[#005ce6]" />
+              GCash Direct API Gateway Active
+            </span>
           </div>
         </div>
 
-        <button
-          onClick={() => recalculatePayroll(selectedWeek === 'ALL' ? '2026-W41' : selectedWeek)}
-          className="px-3.5 py-2 bg-[#a3e635] text-[#080f0d] hover:bg-[#84cc16] font-bold text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5 self-start sm:self-auto"
-        >
-          <Calculator className="w-4 h-4" />
-          Recalculate Week Payroll
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {pendingGcashItems.length > 0 && (
+            <button
+              onClick={handleBatchDisburse}
+              disabled={isBatchProcessing}
+              className="px-3.5 py-2 bg-[#005ce6] hover:bg-[#0047b3] text-white font-extrabold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Disburse all pending GCash weekly salaries at once"
+            >
+              <Zap className="w-4 h-4 text-sky-200" />
+              <span>
+                {isBatchProcessing
+                  ? 'Executing GCash Batch...'
+                  : `Batch Disburse ${pendingGcashItems.length} via GCash (₱${pendingGcashTotal.toLocaleString()})`}
+              </span>
+            </button>
+          )}
+
+          <button
+            onClick={() => recalculatePayroll(selectedWeek === 'ALL' ? '2026-W41' : selectedWeek)}
+            className="px-3.5 py-2 bg-[#a3e635] text-[#080f0d] hover:bg-[#84cc16] font-bold text-xs rounded-lg shadow-sm transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+          >
+            <Calculator className="w-4 h-4" />
+            Recalculate Week Payroll
+          </button>
+        </div>
       </div>
 
+      {batchNotice && (
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{batchNotice}</span>
+        </div>
+      )}
+
       {/* Summary KPI Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-[#0e1a16] border border-[#234338] rounded-xl p-3.5">
           <span className="text-[11px] font-bold uppercase text-slate-400">Total Gross Wages</span>
           <div className="text-xl font-bold font-mono text-emerald-400 mt-1">
             ₱{totalGross.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
+          <span className="text-[10px] text-slate-500">Earned before deductions</span>
         </div>
+
         <div className="bg-[#0e1a16] border border-[#234338] rounded-xl p-3.5">
-          <span className="text-[11px] font-bold uppercase text-slate-400">Total Withheld Deductions</span>
+          <span className="text-[11px] font-bold uppercase text-slate-400">Withheld Deductions</span>
           <div className="text-xl font-bold font-mono text-red-400 mt-1">
             -₱{totalDeductions.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
+          <span className="text-[10px] text-slate-500">SSS, PhilHealth, Canteen</span>
         </div>
+
         <div className="bg-[#0e1a16] border border-[#234338] rounded-xl p-3.5">
           <span className="text-[11px] font-bold uppercase text-slate-400">Net Take-Home Outflow</span>
           <div className="text-xl font-bold font-mono text-[#a3e635] mt-1">
             ₱{totalNet.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          </div>
+          <span className="text-[10px] text-slate-500">Total salary disbursements</span>
+        </div>
+
+        {/* GCash Corporate Master Account Card */}
+        <div className="bg-[#0e1a16] border border-[#005ce6]/40 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold text-sky-400 uppercase text-[11px] flex items-center gap-1.5">
+              <Wallet className="w-3.5 h-3.5 text-[#005ce6]" />
+              GCash Corp Wallet
+            </span>
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[#005ce6]/20 text-sky-300 border border-[#005ce6]/40">
+              ACTIVE 24/7
+            </span>
+          </div>
+          <div className="mt-2">
+            <div className="text-xl font-bold font-mono text-white">
+              ₱528,450.00
+            </div>
+            <div className="text-[10px] text-slate-400 mt-0.5 flex items-center justify-between">
+              <span>Merchant: DRC-ENT-2026</span>
+              <span className="text-emerald-400 font-semibold">Zero Fee Tier</span>
+            </div>
           </div>
         </div>
       </div>
@@ -281,16 +384,49 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ onOpenSinglePayslip })
                       </td>
                       <td className="p-3 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleOpenProof(p)}
-                            className="px-2.5 py-1 bg-[#13241f] border border-[#234338] hover:border-[#10b981] text-slate-200 hover:text-white rounded-md text-[11px] font-semibold flex items-center gap-1"
-                          >
-                            <FileCheck2 className="w-3 h-3 text-[#a3e635]" />
-                            {isVerified ? 'Proof' : 'Verify'}
-                          </button>
+                          {p.payment_status === 'Pending' ? (
+                            <>
+                              <button
+                                onClick={() => setGcashModalRecord(p)}
+                                className="px-2.5 py-1 bg-[#005ce6] hover:bg-[#0047b3] text-white rounded-md text-[11px] font-bold flex items-center gap-1 transition-all shadow-sm cursor-pointer"
+                                title={`Disburse ₱${p.net_pay.toLocaleString()} to ${p.employee_id} via GCash`}
+                              >
+                                <Smartphone className="w-3 h-3 text-sky-200" />
+                                <span>Pay GCash</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenProof(p)}
+                                className="px-2 py-1 bg-[#13241f] border border-[#234338] hover:border-slate-500 text-slate-300 hover:text-white rounded-md text-[11px] font-medium transition-colors cursor-pointer"
+                                title="Manual voucher verification"
+                              >
+                                Manual
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              {p.payment_method === 'GCash' ? (
+                                <button
+                                  onClick={() => setGcashModalRecord(p)}
+                                  className="px-2.5 py-1 bg-[#005ce6]/15 border border-[#005ce6]/40 hover:border-[#005ce6] text-sky-300 hover:text-white rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                  title="View and download official GCash disbursement receipt"
+                                >
+                                  <Smartphone className="w-3 h-3 text-[#005ce6]" />
+                                  <span>Receipt</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleOpenProof(p)}
+                                  className="px-2.5 py-1 bg-[#13241f] border border-[#234338] hover:border-[#10b981] text-slate-200 hover:text-white rounded-md text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <FileCheck2 className="w-3 h-3 text-[#a3e635]" />
+                                  <span>Proof</span>
+                                </button>
+                              )}
+                            </>
+                          )}
                           <button
                             onClick={() => onOpenSinglePayslip(p.payroll_id)}
-                            className="p-1 text-slate-400 hover:text-white hover:bg-[#13241f] rounded-md"
+                            className="p-1 text-slate-400 hover:text-white hover:bg-[#13241f] rounded-md transition-colors cursor-pointer"
                             title="Generate Individual Payslip"
                           >
                             <FileText className="w-3.5 h-3.5" />
@@ -446,6 +582,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ onOpenSinglePayslip })
           </div>
         </div>
       )}
+
+      {/* Dedicated Interactive GCash Disbursement Modal */}
+      <GCashPaymentModal
+        isOpen={Boolean(gcashModalRecord)}
+        onClose={() => setGcashModalRecord(null)}
+        payrollRecord={gcashModalRecord}
+      />
     </div>
   );
 };

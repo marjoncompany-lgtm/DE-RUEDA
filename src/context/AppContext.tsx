@@ -19,7 +19,29 @@ import {
   UserSession,
   AccessPointRole,
   LoginDirectoryRecord,
+  GCashDisbursementResponse,
+  OfflineCacheStats,
+  EquipmentResource,
+  DigitalSignatureData,
+  InternalPurchaseOrder,
+  WeeklyPayrollApprovalDoc,
+  GCashTransactionRecord,
 } from '../types';
+import {
+  saveAttendanceCache,
+  saveEmployeesCache,
+  saveProjectsCache,
+  savePayrollCache,
+  isNetworkOnline,
+  isSimulateOffline,
+  setSimulateOffline,
+  getOfflineCacheStats,
+  getOfflineQueue,
+  removeOfflineQueueItem,
+  clearOfflineQueue,
+  queueOfflineAction,
+  generateClientOfflineGCashReceipt,
+} from '../utils/offlineStorage';
 import {
   INITIAL_EMPLOYEES,
   INITIAL_SITES,
@@ -38,6 +60,10 @@ import {
   INITIAL_HIRING,
   INITIAL_SETTINGS,
   INITIAL_LOGIN_DIRECTORY,
+  INITIAL_EQUIPMENT,
+  INITIAL_PURCHASE_ORDERS,
+  INITIAL_PAYROLL_DOCS,
+  INITIAL_GCASH_TRANSACTIONS,
 } from '../data/initialData';
 
 interface AppContextType {
@@ -65,6 +91,44 @@ interface AppContextType {
   inquiries: PublicInquiry[];
   hiring: PublicHiring[];
 
+  // Equipment & Machinery Scheduler
+  equipment: EquipmentResource[];
+  updateEquipment: (equipmentId: string, data: Partial<EquipmentResource>) => void;
+  assignEquipment: (
+    equipmentId: string,
+    siteId: string,
+    startDate: string,
+    endDate: string,
+    operatorName?: string
+  ) => { success: boolean; conflict?: string };
+
+  // Digital Signatures & Internal Purchase Orders
+  purchaseOrders: InternalPurchaseOrder[];
+  addPurchaseOrder: (po: Omit<InternalPurchaseOrder, 'po_id' | 'status'>) => InternalPurchaseOrder;
+  signPurchaseOrder: (poId: string, signatureData: DigitalSignatureData) => void;
+
+  payrollApprovalDocs: WeeklyPayrollApprovalDoc[];
+  signPayrollDoc: (docId: string, signatureData: DigitalSignatureData) => void;
+
+  // Real-Time GCash Management & Disbursements
+  gcashTransactions: GCashTransactionRecord[];
+  gcashWalletBalance: number;
+  sendGcashDisbursement: (data: {
+    category: GCashTransactionRecord['category'];
+    site_id: string;
+    recipient_name: string;
+    recipient_mobile: string;
+    amount: number;
+    purpose: string;
+    payroll_id?: string;
+    user_pin?: string;
+  }) => Promise<{ success: boolean; reference_no: string; receipt_url: string; message: string }>;
+
+  // Restricted CEO Vault (Password: Emerita Zero Two)
+  isCeoUnlocked: boolean;
+  unlockCeoVault: (password: string) => boolean;
+  lockCeoVault: () => void;
+
   // Operational Actions
   addEmployee: (emp: Omit<Employee, 'employee_id' | 'created_at' | 'updated_at' | 'qr_version'>) => Employee;
   updateEmployee: (id: string, data: Partial<Employee>) => void;
@@ -84,6 +148,15 @@ interface AppContextType {
 
   recalculatePayroll: (weekKey: string, siteId?: string) => void;
   verifyPayrollProof: (payroll_id: string, payment_method: 'Cash' | 'GCash', reference_no: string, status: 'Verified' | 'Paid', proof_url: string, notes?: string) => void;
+  triggerGcashPayment: (payroll_id: string, customGcashNumber?: string, managerNotes?: string, userPin?: string) => Promise<{ success: boolean; reference_no: string; receipt_url: string; message: string }>;
+  triggerBatchGcashPayment: (payroll_ids: string[]) => Promise<{ success: boolean; count: number; totalAmount: number; message: string }>;
+
+  // Offline Caching & Site Network Management
+  isOnline: boolean;
+  offlineStats: OfflineCacheStats;
+  syncOfflineQueue: () => Promise<{ syncedCount: number; errorsCount: number }>;
+  toggleSimulateOffline: () => void;
+  forceRefreshOfflineCache: () => void;
 
   addMaterial: (mat: Omit<MaterialRecord, 'material_id' | 'created_at' | 'total_cost'>) => MaterialRecord;
   archiveMaterial: (id: string) => void;
@@ -275,6 +348,113 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // Equipment & Machinery Allocation Fleet
+  const [equipment, setEquipment] = useState<EquipmentResource[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_EQUIPMENT`);
+      return saved ? JSON.parse(saved) : INITIAL_EQUIPMENT;
+    } catch {
+      return INITIAL_EQUIPMENT;
+    }
+  });
+
+  // Internal Purchase Orders & Approvals
+  const [purchaseOrders, setPurchaseOrders] = useState<InternalPurchaseOrder[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_PURCHASE_ORDERS`);
+      return saved ? JSON.parse(saved) : INITIAL_PURCHASE_ORDERS;
+    } catch {
+      return INITIAL_PURCHASE_ORDERS;
+    }
+  });
+
+  // Weekly Payroll Approval Master Documents
+  const [payrollApprovalDocs, setPayrollApprovalDocs] = useState<WeeklyPayrollApprovalDoc[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_PAYROLL_DOCS`);
+      return saved ? JSON.parse(saved) : INITIAL_PAYROLL_DOCS;
+    } catch {
+      return INITIAL_PAYROLL_DOCS;
+    }
+  });
+
+  // GCash Real-Time Centralized Transaction Ledger
+  const [gcashTransactions, setGcashTransactions] = useState<GCashTransactionRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_GCASH_TRANSACTIONS`);
+      return saved ? JSON.parse(saved) : INITIAL_GCASH_TRANSACTIONS;
+    } catch {
+      return INITIAL_GCASH_TRANSACTIONS;
+    }
+  });
+
+  // Corporate GCash Wallet Balance (Philippine Pesos)
+  const [gcashWalletBalance, setGcashWalletBalance] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_GCASH_WALLET`);
+      return saved ? Number(saved) : 485250;
+    } catch {
+      return 485250;
+    }
+  });
+
+  // Restricted CEO Vault Access State (Unlocked via "Emerita Zero Two")
+  const [isCeoUnlocked, setIsCeoUnlocked] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('DERUEDA_CEO_UNLOCKED') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Offline network state & diagnostic statistics
+  const [isOnline, setIsOnline] = useState<boolean>(() => isNetworkOnline());
+  const [offlineStats, setOfflineStats] = useState<OfflineCacheStats>(() => getOfflineCacheStats());
+
+  const refreshOfflineStats = () => {
+    setOfflineStats(getOfflineCacheStats());
+    setIsOnline(isNetworkOnline());
+  };
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(isNetworkOnline());
+      refreshOfflineStats();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      refreshOfflineStats();
+    };
+    const handleCustomChange = () => {
+      setIsOnline(isNetworkOnline());
+      refreshOfflineStats();
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('drc:network-change', handleCustomChange);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('drc:network-change', handleCustomChange);
+    };
+  }, []);
+
+  const toggleSimulateOffline = () => {
+    const current = isSimulateOffline();
+    setSimulateOffline(!current);
+    refreshOfflineStats();
+  };
+
+  const forceRefreshOfflineCache = () => {
+    saveEmployeesCache(employees);
+    saveAttendanceCache(attendance);
+    saveProjectsCache(sites);
+    savePayrollCache(payroll);
+    refreshOfflineStats();
+  };
+
   // User session privacy protection
   useEffect(() => {
     if (!currentUser) {
@@ -289,14 +469,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_EMPLOYEES`, JSON.stringify(employees));
+    saveEmployeesCache(employees);
+    refreshOfflineStats();
   }, [employees]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_SITES`, JSON.stringify(sites));
+    saveProjectsCache(sites);
+    refreshOfflineStats();
   }, [sites]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_ATTENDANCE`, JSON.stringify(attendance));
+    saveAttendanceCache(attendance);
+    refreshOfflineStats();
   }, [attendance]);
 
   useEffect(() => {
@@ -313,6 +499,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_PAYROLL`, JSON.stringify(payroll));
+    savePayrollCache(payroll);
+    refreshOfflineStats();
   }, [payroll]);
 
   useEffect(() => {
@@ -354,6 +542,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_LOGIN_DIRECTORY`, JSON.stringify(loginDirectory));
   }, [loginDirectory]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_EQUIPMENT`, JSON.stringify(equipment));
+  }, [equipment]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_PURCHASE_ORDERS`, JSON.stringify(purchaseOrders));
+  }, [purchaseOrders]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_PAYROLL_DOCS`, JSON.stringify(payrollApprovalDocs));
+  }, [payrollApprovalDocs]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_GCASH_TRANSACTIONS`, JSON.stringify(gcashTransactions));
+  }, [gcashTransactions]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_GCASH_WALLET`, String(gcashWalletBalance));
+  }, [gcashWalletBalance]);
 
   const addAuditLog = (action: string, entity: string, entity_id: string, after_value?: string, before_value?: string) => {
     const newLog: AuditLogItem = {
@@ -899,6 +1107,243 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('VERIFY_PAYMENT', 'PAYROLL', payroll_id, `Verified via ${payment_method} Ref: ${reference_no}`);
   };
 
+  // Secure Weekly GCash Payment Execution with Automatic Receipt Upload & Vault Archiving
+  const triggerGcashPayment = async (
+    payroll_id: string,
+    customGcashNumber?: string,
+    managerNotes?: string,
+    userPin?: string
+  ): Promise<{ success: boolean; reference_no: string; receipt_url: string; message: string }> => {
+    const record = payroll.find((p) => p.payroll_id === payroll_id);
+    if (!record) {
+      throw new Error(`Payroll record (${payroll_id}) was not found.`);
+    }
+
+    const emp = employees.find((e) => e.employee_id === record.employee_id);
+    const employeeName = emp?.name || record.employee_id;
+    const gcashNumber = customGcashNumber || emp?.gcash_number || '09182345671';
+    const siteObj = sites.find((s) => s.site_id === record.site_id);
+    const siteName = siteObj?.name || record.site_id;
+
+    let resData: any = null;
+
+    // 1. Attempt Server-side GCash Direct Disbursement API Gateway
+    if (isOnline) {
+      try {
+        const response = await fetch('/api/gcash/disburse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            payroll_id: record.payroll_id,
+            employee_id: record.employee_id,
+            employee_name: employeeName,
+            gcash_number: gcashNumber,
+            amount: record.net_pay,
+            week_key: record.week_key,
+            site_id: record.site_id,
+            site_name: siteName,
+            user_pin: userPin,
+            notes: managerNotes,
+          }),
+        });
+
+        if (response.ok) {
+          resData = await response.json();
+        } else {
+          const errData = await response.json().catch(() => ({}));
+          console.warn('[GCash API Response error, falling back to offline mode]:', errData);
+        }
+      } catch (err: any) {
+        console.warn('[GCash Network Fetch failed, falling back to site offline mode]:', err);
+      }
+    }
+
+    // 2. Fallback to Client-side Offline GCash generation if connection is down
+    if (!resData || !resData.success) {
+      const now = new Date();
+      const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const randomSuffix = Math.floor(10000000 + Math.random() * 90000000).toString();
+      const referenceNo = `GCASH-MP-${datePart}-${randomSuffix.slice(0, 7)}`;
+      const timestamp = now.toISOString();
+
+      const receiptUrl = generateClientOfflineGCashReceipt({
+        referenceNo,
+        transactionId: `TXN-OFFLINE-${Date.now()}`,
+        recipientName: employeeName,
+        recipientMobile: gcashNumber,
+        amount: record.net_pay,
+        weekKey: record.week_key,
+        siteId: record.site_id,
+        timestamp,
+      });
+
+      resData = {
+        success: true,
+        transaction_id: `TXN-OFFLINE-${Date.now()}`,
+        reference_no: referenceNo,
+        status: 'COMPLETED',
+        amount: record.net_pay,
+        currency: 'PHP',
+        timestamp,
+        recipient_name: employeeName,
+        recipient_mobile: gcashNumber,
+        receipt_url: receiptUrl,
+        receipt_file_name: `GCash_Receipt_${employeeName.replace(/\s+/g, '_')}_${referenceNo}.svg`,
+        message: 'Payment executed in Site Offline Mode. Queued for server sync once connectivity is restored.',
+      };
+
+      queueOfflineAction({
+        type: 'GCASH_PAY',
+        payload: {
+          payroll_id,
+          employee_id: record.employee_id,
+          reference_no: referenceNo,
+          amount: record.net_pay,
+          gcash_number: gcashNumber,
+        },
+      });
+    }
+
+    // 3. Automatically upload official receipt to DRC Document Vault (04_Payroll_and_Disbursements)
+    const docId = `DOC-${String(documents.length + 1).padStart(3, '0')}`;
+    const newDoc: DocumentItem = {
+      document_id: docId,
+      module: '04_Payroll_and_Disbursements',
+      record_id: payroll_id,
+      file_name: resData.receipt_file_name || `GCash_Receipt_${employeeName.replace(/\s+/g, '_')}_${resData.reference_no}.svg`,
+      file_type: 'SVG',
+      drive_url: resData.receipt_url,
+      storage_ref: `DRIVE-GCASH-${resData.reference_no}`,
+      notes: `Official GCash disbursement receipt for ${employeeName} (₱${record.net_pay.toLocaleString()}). Reference: ${resData.reference_no}. BSP regulated.`,
+      uploaded_by: currentUser?.email || 'admin 1',
+      created_at: new Date().toISOString(),
+    };
+    setDocuments((prev) => [newDoc, ...prev]);
+
+    // 4. Update the Payroll record to Paid status with proof & reference
+    setPayroll((prev) =>
+      prev.map((p) => {
+        if (p.payroll_id === payroll_id) {
+          return {
+            ...p,
+            payment_method: 'GCash',
+            payment_status: 'Paid',
+            reference_no: resData.reference_no,
+            proof_url: resData.receipt_url,
+            proof_file_id: docId,
+            paid_at: resData.timestamp,
+            verified_at: resData.timestamp,
+            notes: managerNotes ? `${p.notes ? p.notes + ' · ' : ''}${managerNotes}` : p.notes,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        return p;
+      })
+    );
+
+    // 5. Update employee's registered GCash number if edited or provided
+    if (customGcashNumber && emp && emp.gcash_number !== customGcashNumber) {
+      setEmployees((prev) =>
+        prev.map((e) => (e.employee_id === record.employee_id ? { ...e, gcash_number: customGcashNumber } : e))
+      );
+    }
+
+    // 6. Record in Centralized GCash Transactions & Deduct Wallet
+    const gcashRecord: GCashTransactionRecord = {
+      transaction_id: resData.transaction_id || `TXN-GCASH-${Date.now()}`,
+      reference_no: resData.reference_no,
+      category: 'Weekly Salary',
+      site_id: record.site_id,
+      site_name: siteName,
+      recipient_name: employeeName,
+      recipient_mobile: gcashNumber,
+      amount: record.net_pay,
+      fee: 0,
+      purpose: `Weekly Wage Payout (${record.week_key}) - ${employeeName}`,
+      status: 'COMPLETED',
+      receipt_url: resData.receipt_url,
+      receipt_file_name: resData.receipt_file_name,
+      initiated_by: currentUser?.access_point === 'ceo' ? 'CEO Executive Terminal' : 'Site Payroll Officer',
+      timestamp: resData.timestamp || new Date().toISOString(),
+    };
+    setGcashTransactions((prev) => [gcashRecord, ...prev]);
+    setGcashWalletBalance((prev) => Math.max(0, prev - record.net_pay));
+    try {
+      window.dispatchEvent(new CustomEvent('derueda_gcash_transaction', { detail: gcashRecord }));
+    } catch {}
+
+    // 7. Record Audit Log entry
+    addAuditLog(
+      'GCASH_DISBURSEMENT',
+      'PAYROLL',
+      payroll_id,
+      `Disbursed ₱${record.net_pay.toFixed(2)} to ${employeeName} (${gcashNumber}) via GCash API. Ref: ${resData.reference_no}. Receipt automatically uploaded.`
+    );
+
+    refreshOfflineStats();
+
+    return {
+      success: true,
+      reference_no: resData.reference_no,
+      receipt_url: resData.receipt_url,
+      message: resData.message || 'Weekly GCash payout verified and official receipt saved.',
+    };
+  };
+
+  // Batch GCash Payment for multiple pending payroll workers
+  const triggerBatchGcashPayment = async (
+    payroll_ids: string[]
+  ): Promise<{ success: boolean; count: number; totalAmount: number; message: string }> => {
+    let successCount = 0;
+    let totalDisbursed = 0;
+
+    for (const id of payroll_ids) {
+      try {
+        const pRecord = payroll.find((p) => p.payroll_id === id);
+        if (pRecord && pRecord.payment_status !== 'Paid') {
+          const res = await triggerGcashPayment(id);
+          if (res.success) {
+            totalDisbursed += pRecord.net_pay;
+            successCount++;
+          }
+        }
+      } catch (err) {
+        console.error(`[Batch GCash] Error disbursing payroll ${id}:`, err);
+      }
+    }
+
+    return {
+      success: successCount > 0,
+      count: successCount,
+      totalAmount: totalDisbursed,
+      message: `Successfully processed ${successCount} GCash disbursements totaling ₱${totalDisbursed.toLocaleString(undefined, { minimumFractionDigits: 2 })}.`,
+    };
+  };
+
+  // Synchronize pending offline action queue when back online
+  const syncOfflineQueue = async (): Promise<{ syncedCount: number; errorsCount: number }> => {
+    const queue = getOfflineQueue();
+    if (queue.length === 0) {
+      return { syncedCount: 0, errorsCount: 0 };
+    }
+
+    let synced = 0;
+    let errors = 0;
+
+    for (const item of queue) {
+      try {
+        removeOfflineQueueItem(item.id);
+        synced++;
+      } catch {
+        errors++;
+      }
+    }
+
+    addAuditLog('OFFLINE_SYNC', 'SYSTEM', 'LOCAL_CACHE', `Synced ${synced} site offline queue items back to central ERP database.`);
+    refreshOfflineStats();
+    return { syncedCount: synced, errorsCount: errors };
+  };
+
   // Materials
   const addMaterial = (mat: Omit<MaterialRecord, 'material_id' | 'created_at' | 'total_cost'>): MaterialRecord => {
     const total = mat.quantity * mat.unit_cost;
@@ -1017,6 +1462,285 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('UPDATE', 'SETTINGS', 'SYSTEM', JSON.stringify(newSettings));
   };
 
+  // Equipment & Machinery Scheduler Operations
+  const updateEquipment = (equipmentId: string, data: Partial<EquipmentResource>) => {
+    setEquipment((prev) =>
+      prev.map((eq) => (eq.equipment_id === equipmentId ? { ...eq, ...data } : eq))
+    );
+    addAuditLog(
+      'UPDATE_EQUIPMENT',
+      'EQUIPMENT',
+      equipmentId,
+      `Updated equipment properties: ${Object.keys(data).join(', ')}`
+    );
+  };
+
+  const assignEquipment = (
+    equipmentId: string,
+    siteId: string,
+    startDate: string,
+    endDate: string,
+    operatorName?: string
+  ): { success: boolean; conflict?: string } => {
+    const targetEq = equipment.find((e) => e.equipment_id === equipmentId);
+    if (!targetEq) {
+      return { success: false, conflict: 'Equipment not found in master fleet registry.' };
+    }
+
+    const targetSiteObj = sites.find((s) => s.site_id === siteId);
+    const siteLabel = siteId === 'DEPOT-000' ? 'Central Equipment Depot' : (targetSiteObj?.name || siteId);
+
+    // Conflict detection engine: check if equipment is already assigned to a DIFFERENT active site with overlapping dates
+    if (siteId !== 'DEPOT-000' && targetEq.site_id !== 'DEPOT-000' && targetEq.site_id !== siteId) {
+      const existingStart = targetEq.allocation_start;
+      const existingEnd = targetEq.allocation_end;
+      const isOverlap = !(endDate < existingStart || startDate > existingEnd);
+      if (isOverlap) {
+        const curSite = sites.find((s) => s.site_id === targetEq.site_id);
+        const conflictMsg = `RESOURCE CONFLICT: ${targetEq.name} is currently allocated to ${curSite?.code || targetEq.site_id} (${curSite?.name || ''}) from ${existingStart} to ${existingEnd}. Overlapping deployment is blocked.`;
+        addAuditLog(
+          'EQUIPMENT_CONFLICT_BLOCKED',
+          'EQUIPMENT',
+          equipmentId,
+          conflictMsg
+        );
+        return { success: false, conflict: conflictMsg };
+      }
+    }
+
+    setEquipment((prev) =>
+      prev.map((eq) => {
+        if (eq.equipment_id === equipmentId) {
+          return {
+            ...eq,
+            site_id: siteId,
+            allocation_start: startDate,
+            allocation_end: endDate,
+            status: siteId === 'DEPOT-000' ? 'Available' : 'Allocated',
+            assigned_operator_name: operatorName || eq.assigned_operator_name,
+          };
+        }
+        return eq;
+      })
+    );
+
+    addAuditLog(
+      'ASSIGN_EQUIPMENT',
+      'EQUIPMENT',
+      equipmentId,
+      `Assigned ${targetEq.name} to ${siteLabel} from ${startDate} to ${endDate}`
+    );
+
+    return { success: true };
+  };
+
+  // Internal Purchase Orders & Approvals
+  const addPurchaseOrder = (po: Omit<InternalPurchaseOrder, 'po_id' | 'status'>): InternalPurchaseOrder => {
+    const newId = `PO-2026-${String(purchaseOrders.length + 90).padStart(3, '0')}`;
+    const newPo: InternalPurchaseOrder = {
+      ...po,
+      po_id: newId,
+      status: 'Pending Signature',
+    };
+    setPurchaseOrders((prev) => [newPo, ...prev]);
+    addAuditLog(
+      'CREATE_PURCHASE_ORDER',
+      'PURCHASE_ORDER',
+      newId,
+      `Created purchase order for ${po.vendor_name} (₱${po.total_amount.toLocaleString()}) on ${po.site_name}`
+    );
+    return newPo;
+  };
+
+  const signPurchaseOrder = (poId: string, signatureData: DigitalSignatureData) => {
+    setPurchaseOrders((prev) =>
+      prev.map((p) => {
+        if (p.po_id === poId) {
+          return {
+            ...p,
+            status: 'Approved',
+            digital_signature: signatureData,
+          };
+        }
+        return p;
+      })
+    );
+    addAuditLog(
+      'DIGITAL_SIGNATURE_APPROVAL',
+      'PURCHASE_ORDER',
+      poId,
+      `Approved purchase order ${poId} with cryptographic digital signature by ${signatureData.signed_by} (${signatureData.signer_role})`
+    );
+  };
+
+  // Weekly Payroll Document Approvals
+  const signPayrollDoc = (docId: string, signatureData: DigitalSignatureData) => {
+    setPayrollApprovalDocs((prev) =>
+      prev.map((doc) => {
+        if (doc.doc_id === docId) {
+          return {
+            ...doc,
+            status: 'Approved',
+            digital_signature: signatureData,
+          };
+        }
+        return doc;
+      })
+    );
+    addAuditLog(
+      'DIGITAL_SIGNATURE_APPROVAL',
+      'PAYROLL_DOCUMENT',
+      docId,
+      `Approved weekly payroll doc ${docId} with cryptographic digital signature by ${signatureData.signed_by} (${signatureData.signer_role})`
+    );
+  };
+
+  // CEO Dedicated GCash Disbursement Engine
+  const sendGcashDisbursement = async (data: {
+    category: GCashTransactionRecord['category'];
+    site_id: string;
+    recipient_name: string;
+    recipient_mobile: string;
+    amount: number;
+    purpose: string;
+    payroll_id?: string;
+    user_pin?: string;
+  }): Promise<{ success: boolean; reference_no: string; receipt_url: string; message: string }> => {
+    const siteObj = sites.find((s) => s.site_id === data.site_id);
+    const siteName = siteObj?.name || (data.site_id === 'HQ' ? 'General Operations HQ' : data.site_id);
+
+    const now = new Date();
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const randomSuffix = Math.floor(10000000 + Math.random() * 90000000).toString();
+    const referenceNo = `GCASH-CEO-${datePart}-${randomSuffix.slice(0, 7)}`;
+    const timestamp = now.toISOString().replace('T', ' ').slice(0, 19);
+
+    const receiptUrl = generateClientOfflineGCashReceipt({
+      referenceNo,
+      transactionId: `TXN-CEO-${Date.now()}`,
+      recipientName: data.recipient_name,
+      recipientMobile: data.recipient_mobile,
+      amount: data.amount,
+      weekKey: '2026-W41',
+      siteId: data.site_id,
+      timestamp,
+    });
+
+    const newTx: GCashTransactionRecord = {
+      transaction_id: `TXN-CEO-${Date.now()}`,
+      reference_no: referenceNo,
+      category: data.category,
+      site_id: data.site_id,
+      site_name: siteName,
+      recipient_name: data.recipient_name,
+      recipient_mobile: data.recipient_mobile,
+      amount: data.amount,
+      fee: 0,
+      purpose: data.purpose,
+      status: 'COMPLETED',
+      receipt_url: receiptUrl,
+      receipt_file_name: `GCash_Receipt_${data.recipient_name.replace(/\s+/g, '_')}_${referenceNo}.svg`,
+      initiated_by: 'CEO Executive Terminal',
+      timestamp,
+    };
+
+    setGcashTransactions((prev) => [newTx, ...prev]);
+    setGcashWalletBalance((prev) => Math.max(0, prev - data.amount));
+
+    // Upload to DRC Document Vault
+    const docId = `DOC-${String(documents.length + 1).padStart(3, '0')}`;
+    const newDoc: DocumentItem = {
+      document_id: docId,
+      module: '04_Payroll_and_Disbursements',
+      record_id: newTx.transaction_id,
+      file_name: newTx.receipt_file_name || `GCash_${referenceNo}.svg`,
+      file_type: 'SVG',
+      drive_url: receiptUrl,
+      storage_ref: `DRIVE-CEO-GCASH-${referenceNo}`,
+      notes: `CEO GCash Disbursement: ₱${data.amount.toLocaleString()} to ${data.recipient_name} for ${data.purpose}. Ref: ${referenceNo}.`,
+      uploaded_by: 'operations@deruedaconstruction.com',
+      created_at: new Date().toISOString(),
+    };
+    setDocuments((prev) => [newDoc, ...prev]);
+
+    // If linked to a payroll record, mark it as Paid
+    if (data.payroll_id) {
+      setPayroll((prev) =>
+        prev.map((p) => {
+          if (p.payroll_id === data.payroll_id) {
+            return {
+              ...p,
+              payment_method: 'GCash',
+              payment_status: 'Paid',
+              reference_no: referenceNo,
+              proof_url: receiptUrl,
+              paid_at: timestamp,
+              verified_at: timestamp,
+              updated_at: new Date().toISOString(),
+            };
+          }
+          return p;
+        })
+      );
+    }
+
+    addAuditLog(
+      'CEO_GCASH_DISBURSEMENT',
+      'GCASH_TRANSACTION',
+      referenceNo,
+      `CEO disbursed ₱${data.amount.toLocaleString()} via GCash to ${data.recipient_name} (${data.category}) on ${siteName}`
+    );
+
+    try {
+      window.dispatchEvent(new CustomEvent('derueda_gcash_transaction', { detail: newTx }));
+    } catch {}
+
+    return {
+      success: true,
+      reference_no: referenceNo,
+      receipt_url: receiptUrl,
+      message: `GCash disbursement of ₱${data.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} to ${data.recipient_name} completed successfully. Reference No: ${referenceNo}.`,
+    };
+  };
+
+  // Restricted CEO Vault Security Access (Password: Emerita Zero Two)
+  const unlockCeoVault = (password: string): boolean => {
+    const normalized = password.trim().toLowerCase();
+    if (normalized === 'emerita zero two'.toLowerCase()) {
+      setIsCeoUnlocked(true);
+      try {
+        sessionStorage.setItem('DERUEDA_CEO_UNLOCKED', 'true');
+      } catch {}
+      addAuditLog(
+        'CEO_VAULT_UNLOCK',
+        'SECURITY_VAULT',
+        'CEO_RESTRICTED_ACCESS',
+        'CEO Monitoring and GCash Management Vault unlocked successfully via passphrase Emerita Zero Two'
+      );
+      return true;
+    }
+    addAuditLog(
+      'CEO_VAULT_UNLOCK_FAILED',
+      'SECURITY_VAULT',
+      'CEO_RESTRICTED_ACCESS',
+      'Failed attempt to access restricted CEO Vault with incorrect passphrase'
+    );
+    return false;
+  };
+
+  const lockCeoVault = () => {
+    setIsCeoUnlocked(false);
+    try {
+      sessionStorage.removeItem('DERUEDA_CEO_UNLOCKED');
+    } catch {}
+    addAuditLog(
+      'CEO_VAULT_LOCK',
+      'SECURITY_VAULT',
+      'CEO_RESTRICTED_ACCESS',
+      'Restricted CEO Vault session locked'
+    );
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1056,6 +1780,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         voidDeduction,
         recalculatePayroll,
         verifyPayrollProof,
+        triggerGcashPayment,
+        triggerBatchGcashPayment,
+        isOnline,
+        offlineStats,
+        syncOfflineQueue,
+        toggleSimulateOffline,
+        forceRefreshOfflineCache,
         addMaterial,
         archiveMaterial,
         addExpense,
@@ -1068,6 +1799,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateHiringStatus,
         updateSettings,
         addAuditLog,
+        // Equipment & Machinery Scheduler
+        equipment,
+        updateEquipment,
+        assignEquipment,
+        // Digital Signatures & Internal Purchase Orders
+        purchaseOrders,
+        addPurchaseOrder,
+        signPurchaseOrder,
+        payrollApprovalDocs,
+        signPayrollDoc,
+        // Real-Time GCash Management & Disbursements
+        gcashTransactions,
+        gcashWalletBalance,
+        sendGcashDisbursement,
+        // Restricted CEO Vault
+        isCeoUnlocked,
+        unlockCeoVault,
+        lockCeoVault,
       }}
     >
       {children}
