@@ -47,12 +47,16 @@ export const PayslipsView: React.FC<PayslipsViewProps> = ({ selectedSingleId, on
     };
   };
 
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
+
   const handleDownloadBatchPDF = () => {
     const items = filtered.map(getPayslipData);
     if (!items.length) {
-      alert('No payslip records available for the current selection.');
+      setErrorBanner('No payslip records available for the current selection.');
+      setTimeout(() => setErrorBanner(null), 4000);
       return;
     }
+    setErrorBanner(null);
     downloadPayslipBatchPDF(
       `DRC_Payslips_6PerPage_${selectedWeek}_${siteFilter}.pdf`,
       items,
@@ -108,6 +112,13 @@ export const PayslipsView: React.FC<PayslipsViewProps> = ({ selectedSingleId, on
           </button>
         </div>
       </div>
+
+      {errorBanner && (
+        <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 font-semibold flex items-center justify-between no-print">
+          <span>{errorBanner}</span>
+          <button onClick={() => setErrorBanner(null)} className="text-rose-400 hover:text-white ml-2 text-xs">✕</button>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="bg-[#0e1a16] border border-[#234338] rounded-xl p-3 flex flex-wrap items-center gap-3 no-print">
